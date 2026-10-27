@@ -188,6 +188,11 @@ svg.line{width:100%;height:auto;display:block;margin-top:8px}
 .sheet.full{height:92%}
 @media (prefers-reduced-motion:reduce){.sw2 i{transition:none}}
 </style>
+<script>
+(function(){var t='dark';try{t=localStorage.getItem('denyuzhki-theme')||'dark';}catch(e){}
+if(t!=='system')document.documentElement.setAttribute('data-theme',t);
+var m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#5B3DF5':'#0F0B1E';})();
+</script>
 </head>
 <body>
 
@@ -581,6 +586,8 @@ function sheetSettings(){
   b+='</div><button class="btn ghost block" style="margin-top:10px" data-act="acc-new">Добавить счёт</button>';
   b+=catSec('exp','Категории расходов',d)+catSec('inc','Категории доходов',d);
   b+='<p class="err" id="err"></p>';
+  var th=getTheme();
+  b+='<div class="sec-t">Тема</div><div class="seg" role="group" aria-label="Тема оформления">'+[['dark','Тёмная'],['light','Светлая'],['system','Как в iPhone']].map(function(x){return '<button data-act="theme" data-v="'+x[0]+'" aria-pressed="'+(th===x[0])+'">'+x[1]+'</button>';}).join('')+'</div>';
   b+='<label class="f"><span>Валюта</span><select data-f="cur">'+Object.keys(CURS).map(function(c){return '<option value="'+c+'"'+(S.meta.currency===c?' selected':'')+'>'+c+' ('+CURS[c]+')</option>';}).join('')+'</select></label>';
   b+='<div class="sec-t">Данные</div>';
   if(claudeDownloads||STANDALONE)b+='<button class="btn ghost block" data-act="backup">Сохранить резервную копию (JSON)</button>';
@@ -613,6 +620,10 @@ function saveTx(){
   closeSheet();render();toast('Сохранено');
 }
 function err(m){var e=$('#err');if(e)e.textContent=m;}
+function getTheme(){try{return localStorage.getItem('denyuzhki-theme')||'dark';}catch(e){return 'dark';}}
+function setTheme(v){try{localStorage.setItem('denyuzhki-theme',v);}catch(e){}
+  var r=document.documentElement;if(v==='system')r.removeAttribute('data-theme');else r.setAttribute('data-theme',v);
+  var m=document.querySelector('meta[name=theme-color]');if(m)m.content=(v==='light'||(v==='system'&&!matchMedia('(prefers-color-scheme: dark)').matches))?'#5B3DF5':'#0F0B1E';}
 function done(){var b=ui.back;ui.back=null;closeSheet();if(b)openSheet(b,{});}
 function saveAcc(){
   var d=draft,name=(d.name||'').trim();
@@ -732,6 +743,7 @@ document.addEventListener('click',function(e){
     case 'undemo':undemo();break;
     case 'wipe':if(ui.confirm==='wipe')wipe();else{ui.confirm='wipe';renderSheet();}break;
     case 'export':exportCsv();break;
+    case 'theme':setTheme(v);renderSheet();break;
     case 'backup':backupJson();break;
     case 'import-pick':{var im=document.getElementById('imp');if(im)im.click();break;}
   }
