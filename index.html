@@ -1,18 +1,6 @@
-<!doctype html>
-<html lang="ru">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#5B3DF5">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Денюжки">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icon-180.png">
-<link rel="icon" href="icon-192.png">
-<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}[hidden]{display:none!important}</style>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Денюжки</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Unbounded:wght@500;600&display=swap">
 <style>
 /* Layout: один столбец как в iOS-приложении, нижняя панель вкладок с центральной кнопкой «+», все формы открываются шторкой снизу. */
@@ -188,13 +176,6 @@ svg.line{width:100%;height:auto;display:block;margin-top:8px}
 .sheet.full{height:92%}
 @media (prefers-reduced-motion:reduce){.sw2 i{transition:none}}
 </style>
-<script>
-(function(){var t='dark';try{t=localStorage.getItem('denyuzhki-theme')||'dark';}catch(e){}
-if(t!=='system')document.documentElement.setAttribute('data-theme',t);
-var m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#5B3DF5':'#0F0B1E';})();
-</script>
-</head>
-<body>
 
 <div class="wrap">
   <header class="top"><h1 id="ttl">Денюжки</h1>
@@ -205,7 +186,6 @@ var m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light
 <nav class="tabs" id="tabs" aria-label="Разделы"></nav>
 <div id="sheet"></div>
 <div id="toast" role="status"></div>
-<input type="file" id="imp" accept=".json,application/json" hidden>
 
 <script>
 (function(){
@@ -274,7 +254,7 @@ function balances(){var b={};S.meta.accounts.forEach(function(a){b[a.id]=a.b0||0
 function sum(arr,type){return r2(arr.reduce(function(s,t){return t.t===type?s+t.n:s;},0));}
 
 /* ---------- хранение ---------- */
-var STANDALONE=true;
+var STANDALONE=false;
 var chains={}, metaRef=null, monthsCol=null, claudeDownloads=null;
 function onErr(e){var c=e&&e.code;toast(c==='quota_exceeded'?'Хранилище заполнено, запись не сохранена':'Не удалось сохранить. Проверьте соединение');}
 function enqueue(key,fn){chains[key]=(chains[key]||Promise.resolve()).then(fn).catch(onErr);}
@@ -288,7 +268,22 @@ function updTx(old,nw){var a=old.d.slice(0,7),b=nw.d.slice(0,7);
   else{delTx(old);addTx(nw);}}
 function startLocal(){try{var r=JSON.parse(localStorage.getItem('mybudget-v1')||'null');if(r){S.meta=normMeta(r.meta);S.months=r.months||{};}}catch(e){}
   mode='local';loaded=true;render();}
-function boot(){startLocal();try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}}
+async function boot(){
+  try{
+    if(!window.claude||!window.claude.use)throw 0;
+    var db=await window.claude.use('db'),user=await window.claude.use('user');
+    var id=user?await user.id():null;
+    claudeDownloads=await window.claude.use('downloads');
+    if(!db||!id)throw 0;
+    metaRef=db.doc('data/users/'+id+'/meta');monthsCol=metaRef.collection('months');
+    var gm=false,gs=false;
+    function ready(){if(gm&&gs){mode='cloud';loaded=true;render();}}
+    function fail(){if(mode!=='cloud'){startLocal();}else toast('Связь с хранилищем потеряна');}
+    metaRef.onSnapshot(function(s){S.meta=s.exists?normMeta(s.data()):defMeta();gm=true;ready();},fail);
+    monthsCol.onSnapshot(function(q){var m={};q.docs.forEach(function(d){m[d.id]=(d.data().tx||[]);});S.months=m;gs=true;ready();},fail);
+    setTimeout(function(){if(!loaded)startLocal();},12000);
+  }catch(e){startLocal();}
+}
 
 /* ---------- вспомогательное для интерфейса ---------- */
 var toastT;
@@ -442,6 +437,16 @@ function incExpCard(){
   var cur=items[5];
   return '<section class="card"><h2>Доходы и расходы</h2><small>Последние 6 месяцев</small><div class="gb">'+items.map(function(x){return '<button class="g" data-act="gbar" data-tip="'+esc(tip(x))+'" aria-label="'+esc(tip(x))+'"><span class="pb"><i class="bi" style="height:'+hh(x.i)+'%"></i><i class="be" style="height:'+hh(x.e)+'%"></i></span><span class="gl">'+MS[x.d.getMonth()]+'</span></button>';}).join('')+'</div><div class="lg"><span><i style="background:var(--c3)"></i>Доходы</span><span><i style="background:var(--c2)"></i>Расходы</span></div><p class="readout" id="ro3">'+esc(tip(cur))+'</p></section>';
 }
+function donutCard(title,list,isInc){
+  var by={};list.forEach(function(t){by[t.c||'?']=(by[t.c||'?']||0)+t.n;});
+  var arr=Object.keys(by).map(function(k){var c=cat(k);return {id:k,name:c?c.name:'Без категории',s:c?c.s:0,v:r2(by[k])};}).sort(function(x,y){return y.v-x.v;});
+  var top=arr.slice(0,7),rest=arr.slice(7);
+  if(rest.length)top.push({id:'_',name:'Остальное ('+rest.length+')',s:0,v:r2(rest.reduce(function(s,x){return s+x.v;},0))});
+  var tot=top.reduce(function(s,x){return s+x.v;},0),off=0,seg='<circle cx="21" cy="21" r="15.9155" style="stroke:var(--surface2)"/>';
+  var mx=Math.max.apply(null,top.map(function(q){return q.v;})),pre=isInc?'+':'';
+  top.forEach(function(x){var len=x.v/tot*100,g=top.length>1?.7:0;seg+='<circle cx="21" cy="21" r="15.9155" stroke-dasharray="'+Math.max(.1,len-g)+' '+(100-Math.max(.1,len-g))+'" stroke-dashoffset="'+(-off-g/2)+'" style="stroke:var(--c'+x.s+')"><title>'+esc(x.name)+'</title></circle>';off+=len;});
+  return '<section class="card"><h2>'+esc(title)+'</h2><div class="donut-w"><svg viewBox="0 0 42 42" role="img" aria-label="'+(isInc?'Доходы':'Расходы')+' по категориям">'+seg+'</svg><div class="donut-c"><small>всего</small><b'+(isInc?' class="pos"':'')+'>'+pre+fm(tot)+'</b></div></div><div class="legend">'+top.map(function(x){return '<div class="row"><span class="dot" style="background:var(--c'+x.s+')"></span><span class="r-main"><b>'+esc(x.name)+'</b><small>'+Math.round(x.v/tot*100)+'%</small><span class="mb"><i style="width:'+Math.round(x.v/mx*100)+'%;background:var(--c'+x.s+')"></i></span></span><span class="amt'+(isInc?' pos':'')+'">'+pre+fm(x.v)+'</span></div>';}).join('')+'</div></section>';
+}
 function vStats(){
   var p=ui.sp,a=ui.sa,R=rangeOf(p,a),t0=today();
   var h='<div class="seg" role="group" aria-label="Период">'+[['week','Неделя'],['month','Месяц'],['year','Год'],['all','Всё']].map(function(x){return '<button data-act="sp" data-v="'+x[0]+'" aria-pressed="'+(p===x[0])+'">'+x[1]+'</button>';}).join('')+'</div>';
@@ -458,19 +463,14 @@ function vStats(){
   if(pr){var pe=TX.filter(function(t){return t.t==='exp'&&t.d>=pr.F&&t.d<=pr.T;});var pd=dayDiff(pr.f,pr.t)+1;var pavg=sum(pe,'exp')/pd;
     if(pavg>0&&avg>0){var df=Math.round((avg-pavg)/pavg*100);cmp='<p class="readout">В день в среднем '+fm(avg)+(df===0?', как и в прошлом периоде':': на '+Math.abs(df)+'% '+(df<0?'меньше':'больше')+', чем в прошлом периоде ('+fm(pavg)+')')+'</p>';}}
   h+='<section class="card hero hero2"><div class="lbl">Потрачено</div><p class="big">'+fm(spent)+'</p><div class="stat-grid"><div><small>Доходы</small><b class="pos">+'+fm(inc)+'</b></div><div><small>Разница</small><b>'+fmt(r2(inc-spent))+'</b></div><div><small>В день в среднем</small><b>'+fm(avg)+'</b></div><div><small>Трат</small><b>'+ex.length+'</b></div></div>'+cmp+'</section>';
-  if(!ex.length)return h+'<div class="empty">За этот период расходов нет.</div>';
+  var incL=inR.filter(function(t){return t.t==='inc';});
+  if(!ex.length)return h+(incL.length?donutCard('Откуда доходы',incL,1)+incExpCard():'<div class="empty">За этот период операций нет.</div>');
   if(p==='week'||p==='month'){var len=dayDiff(R.f,R.t)+1,upto=R.T<t0?len-1:Math.min(len-1,Math.max(0,dayDiff(R.f,pdate(t0))));
     var plen=dayDiff(pr.f,pr.t)+1,nn=Math.max(len,plen),cur=cum(R.f,len,upto,nn),prv=cum(pr.f,plen,plen-1,nn);
     var lbl=p==='week'?[[0,'Пн'],[3,'Чт'],[6,'Вс']]:[[0,'1'],[Math.floor((nn-1)/2),String(Math.floor((nn-1)/2)+1)],[nn-1,String(nn)]];
     h+='<section class="card"><h2>Накопленные расходы</h2><small>Как растут траты внутри периода</small>'+lineChart([{pts:prv,color:'var(--muted)',dash:1},{pts:cur,color:'var(--accent)',area:1,dot:1}],nn,lbl)+'<div class="lg"><span><i style="background:var(--accent)"></i>Этот период</span><span><i class="dsh"></i>Прошлый</span></div></section>';}
-  /* категории */
-  var by={};ex.forEach(function(t){by[t.c||'?']=(by[t.c||'?']||0)+t.n;});
-  var arr=Object.keys(by).map(function(k){var c=cat(k);return {id:k,name:c?c.name:'Без категории',s:c?c.s:0,v:r2(by[k])};}).sort(function(x,y){return y.v-x.v;});
-  var top=arr.slice(0,7),rest=arr.slice(7);
-  if(rest.length)top.push({id:'_',name:'Остальное ('+rest.length+')',s:0,v:r2(rest.reduce(function(s,x){return s+x.v;},0))});
-  var tot=top.reduce(function(s,x){return s+x.v;},0),off=0,seg='<circle cx="21" cy="21" r="15.9155" style="stroke:var(--surface2)"/>';
-  top.forEach(function(x){var len=x.v/tot*100,g=top.length>1?.7:0;seg+='<circle cx="21" cy="21" r="15.9155" stroke-dasharray="'+Math.max(.1,len-g)+' '+(100-Math.max(.1,len-g))+'" stroke-dashoffset="'+(-off-g/2)+'" style="stroke:var(--c'+x.s+')"><title>'+esc(x.name)+'</title></circle>';off+=len;});
-  h+='<section class="card"><h2>На что трачу</h2><div class="donut-w"><svg viewBox="0 0 42 42" role="img" aria-label="Расходы по категориям">'+seg+'</svg><div class="donut-c"><small>всего</small><b>'+fm(tot)+'</b></div></div><div class="legend">'+top.map(function(x){return '<div class="row"><span class="dot" style="background:var(--c'+x.s+')"></span><span class="r-main"><b>'+esc(x.name)+'</b><small>'+Math.round(x.v/tot*100)+'%</small><span class="mb"><i style="width:'+Math.round(x.v/Math.max.apply(null,top.map(function(q){return q.v;}))*100)+'%;background:var(--c'+x.s+')"></i></span></span><span class="amt">'+fm(x.v)+'</span></div>';}).join('')+'</div></section>';
+  h+=donutCard('На что трачу',ex,0);
+  if(incL.length)h+=donutCard('Откуда доходы',incL,1);
   /* по времени */
   var items=[],unitDay=(p==='week'||p==='month'),few=false,title;
   if(unitDay){title='Когда трачу: по дням';
@@ -586,8 +586,6 @@ function sheetSettings(){
   b+='</div><button class="btn ghost block" style="margin-top:10px" data-act="acc-new">Добавить счёт</button>';
   b+=catSec('exp','Категории расходов',d)+catSec('inc','Категории доходов',d);
   b+='<p class="err" id="err"></p>';
-  var th=getTheme();
-  b+='<div class="sec-t">Тема</div><div class="seg" role="group" aria-label="Тема оформления">'+[['dark','Тёмная'],['light','Светлая'],['system','Как в iPhone']].map(function(x){return '<button data-act="theme" data-v="'+x[0]+'" aria-pressed="'+(th===x[0])+'">'+x[1]+'</button>';}).join('')+'</div>';
   b+='<label class="f"><span>Валюта</span><select data-f="cur">'+Object.keys(CURS).map(function(c){return '<option value="'+c+'"'+(S.meta.currency===c?' selected':'')+'>'+c+' ('+CURS[c]+')</option>';}).join('')+'</select></label>';
   b+='<div class="sec-t">Данные</div>';
   if(claudeDownloads||STANDALONE)b+='<button class="btn ghost block" data-act="backup">Сохранить резервную копию (JSON)</button>';
@@ -596,7 +594,7 @@ function sheetSettings(){
   if(ex)b+='<button class="btn ghost block" style="margin-top:10px" data-act="undemo">Убрать примеры данных ('+ex+')</button>';
   else if(!TX.length)b+='<button class="btn ghost block" style="margin-top:10px" data-act="demo">Загрузить примеры данных</button>';
   if(TX.length)b+='<button class="btn danger block" style="margin-top:10px" data-act="wipe">'+(ui.confirm==='wipe'?'Точно удалить все операции?':'Удалить все операции')+'</button>';
-  b+='<p class="muted" style="margin-top:14px">'+(mode==='cloud'?'Данные хранятся в вашем аккаунте Claude, видны только вам и доступны с любого устройства.':'Данные хранятся на этом устройстве, в памяти браузера. Время от времени сохраняйте резервную копию, чтобы не потерять их при смене телефона или очистке данных сайтов.')+'</p>';
+  b+='<p class="muted" style="margin-top:14px">'+(mode==='cloud'?'Данные хранятся в вашем аккаунте Claude, видны только вам и доступны с любого устройства.':'Данные хранятся только в этом браузере. Если очистить данные сайтов, они пропадут.')+'</p>';
   return shell('Настройки',b,'full');
 }
 /* ---------- действия ---------- */
@@ -620,10 +618,6 @@ function saveTx(){
   closeSheet();render();toast('Сохранено');
 }
 function err(m){var e=$('#err');if(e)e.textContent=m;}
-function getTheme(){try{return localStorage.getItem('denyuzhki-theme')||'dark';}catch(e){return 'dark';}}
-function setTheme(v){try{localStorage.setItem('denyuzhki-theme',v);}catch(e){}
-  var r=document.documentElement;if(v==='system')r.removeAttribute('data-theme');else r.setAttribute('data-theme',v);
-  var m=document.querySelector('meta[name=theme-color]');if(m)m.content=(v==='light'||(v==='system'&&!matchMedia('(prefers-color-scheme: dark)').matches))?'#5B3DF5':'#0F0B1E';}
 function done(){var b=ui.back;ui.back=null;closeSheet();if(b)openSheet(b,{});}
 function saveAcc(){
   var d=draft,name=(d.name||'').trim();
@@ -743,7 +737,6 @@ document.addEventListener('click',function(e){
     case 'undemo':undemo();break;
     case 'wipe':if(ui.confirm==='wipe')wipe();else{ui.confirm='wipe';renderSheet();}break;
     case 'export':exportCsv();break;
-    case 'theme':setTheme(v);renderSheet();break;
     case 'backup':backupJson();break;
     case 'import-pick':{var im=document.getElementById('imp');if(im)im.click();break;}
   }
@@ -754,13 +747,11 @@ function onField(e){
   if(draft)draft[f]=e.target.value;
 }
 document.addEventListener('input',onField);
-document.addEventListener('change',function(e){if(e.target&&e.target.id==='imp'&&e.target.files&&e.target.files[0]){importFile(e.target.files[0]);e.target.value='';}});
 document.addEventListener('change',function(e){onField(e);var f=e.target&&e.target.dataset&&e.target.dataset.f;if(f==='cur')renderSheet();});
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&ui.sheet)done();});
 
 boot();
-if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0)navigator.serviceWorker.register('sw.js').catch(function(){});
 })();
 </script>
-</body>
-</html>
+
+</body></html>
