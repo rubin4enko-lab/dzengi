@@ -350,8 +350,8 @@ function vOps(){
   if(!fl.length)return h+'<div class="empty">В этом месяце операций нет.<br><br><button class="btn" data-act="add" data-t="exp">Добавить операцию</button></div>';
   var groups={},order=[];
   fl.forEach(function(t){if(!groups[t.d]){groups[t.d]=[];order.push(t.d);}groups[t.d].push(t);});
-  order.forEach(function(d){var g=groups[d],e=sum(g,'exp');
-    h+='<div class="group"><div class="group-h"><span>'+dlabel(d)+'</span><span>'+(e?'−'+fm(e):'')+'</span></div><div class="card">'+g.map(function(t){return txRow(t,false);}).join('')+'</div></div>';});
+  order.forEach(function(d){var g=groups[d],e=sum(g,'exp'),p=sum(g,'inc');
+    h+='<div class="group"><div class="group-h"><span>'+dlabel(d)+'</span><span style="display:flex;gap:10px">'+(p?'<span class="pos">+'+fm(p)+'</span>':'')+(e?'<span>−'+fm(e)+'</span>':'')+'</span></div><div class="card">'+g.map(function(t){return txRow(t,false);}).join('')+'</div></div>';});
   return h;
 }
 
